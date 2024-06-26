@@ -1,60 +1,77 @@
-import 'package:sqflite/sqflite.dart' as sql;
-import 'package:sqflite/sqlite_api.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 
-class SQLHelper {
-  static Future<void> createTables(sql.Database database) async {
-    await database.execute("""
-      CREATE TABLE data (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        description TEXT,
-        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    """);
+class DBHelper {
+  static final DBHelper instance = DBHelper._init();
+  static Database? _database;
+
+  DBHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+
+    _database = await _initDB('pelanggan.db');
+    return _database!;
   }
 
-  static Future<sql.Database> db() async {
-    return sql.openDatabase("Database_name.db", version: 1,
-        onCreate: (sql.Database database, int version) async {
-      await createTables(database);
-    });
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: _createDB,
+    );
   }
 
-  static Future<int> createData(String title, String? description) async {
-    final db = await SQLHelper.db();
-    final data = {'title': title, 'description': description};
-    final id = await db.insert('data', data,
-        conflictAlgorithm: ConflictAlgorithm.replace);
-    return id;
+  Future _createDB(Database db, int version) async {
+    const pelangganTable = '''
+    CREATE TABLE pelanggan (
+      id_pelanggan INTEGER PRIMARY KEY AUTOINCREMENT,
+      id_user TEXT,
+      nama TEXT,
+      alamat TEXT,
+      nohp TEXT
+    )
+    ''';
+
+    await db.execute(pelangganTable);
   }
 
-  static Future<List<Map<String, dynamic>>> getAllData() async {
-    final db = await SQLHelper.db();
-    return db.query('data', orderBy: 'id');
+  Future<void> createPelanggan(Map<String, dynamic> pelanggan) async {
+    final db = await instance.database;
+    await db.insert('pelanggan', pelanggan);
   }
 
-  static Future<Map<String, dynamic>?> getSingleData(int id) async {
-    final db = await SQLHelper.db();
-    final result =
-        await db.query('data', where: "id = ?", whereArgs: [id], limit: 1);
-    return result.isNotEmpty ? result.first : null;
-  }
-
-  static Future<int> updateData(
-      int id, String title, String? description) async {
-    final db = await SQLHelper.db();
-    final data = {
-      'title': title,
-      'description': description,
-      'createdAt': DateTime.now().toString()
-    };
-    final result =
-        await db.update('data', data, where: "id = ?", whereArgs: [id]);
+  Future<List<Map<String, dynamic>>> readAllPelanggan() async {
+    final db = await instance.database;
+    final result = await db.query('pelanggan');
     return result;
   }
 
-  static Future<void> deleteData(int id) async {
-    final db = await SQLHelper.db();
-    await db.delete('data', where: "id = ?", whereArgs: [id]);
+  Future<int> updatePelanggan(Map<String, dynamic> pelanggan) async {
+    final db = await instance.database;
+    final id = pelanggan['id_pelanggan'];
+    return db.update(
+      'pelanggan',
+      pelanggan,
+      where: 'id_pelanggan = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> deletePelanggan(int id) async {
+    final db = await instance.database;
+    return await db.delete(
+      'pelanggan',
+      where: 'id_pelanggan = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future close() async {
+    final db = await instance.database;
+    db.close();
   }
 }
