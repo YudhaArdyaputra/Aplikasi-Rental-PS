@@ -6,8 +6,9 @@ import 'package:rental_ps/Screen/profile.dart';
 import 'package:rental_ps/Screen/riwayat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:rental_ps/cubit/auth/datalogin/cubit/data_login_cubit.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:rental_ps/services/data_service.dart';
+import 'package:rental_ps/dto/profile.dart';
+import 'package:rental_ps/endpoints/endpoints.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,8 +19,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0; // set initial screen index here
-  String _userName = '';
-  String _userPhone = '';
+  Profile? userData;
+  bool isLoading = true;
+  String errorMessage = '';
 
   final List<Widget> _screens = [
     const PemesananScreen(),
@@ -40,32 +42,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> fetchUserData() async {
+    setState(() {
+      isLoading = true;
+    });
+
     final profile = context.read<DataLoginCubit>();
     final currentState = profile.state;
-
     int idUser = currentState.idUser;
 
     try {
-      final response = await http.get(
-        Uri.parse('http://172.20.10.2:5000/api/v1/user/read_by_user?id_user=$idUser'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          _userName = data['datas'][0]['username'];
-          _userPhone = data['datas'][0]['nohp'];
-        });
-      } else {
-        setState(() {
-          _userName = 'Failed to load data';
-          _userPhone = '';
-        });
-      }
+      userData = await DataService.fetchUserData(idUser);
+      setState(() {
+        isLoading = false;
+      });
     } catch (e) {
       setState(() {
-        _userName = 'An error occurred';
-        _userPhone = '';
+        errorMessage = e.toString();
+        isLoading = false;
       });
     }
   }
@@ -94,14 +87,30 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
-              accountName: Text(_userName),
-              accountEmail: Text(_userPhone),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  _userName.isNotEmpty ? _userName[0] : 'U', // Display first letter of user name
-                  style: const TextStyle(fontSize: 40.0, color: Colors.blue),
-                ),
+              accountName: Text(userData?.username ?? 'Loading...'),
+              accountEmail: Text(userData?.noHp ?? ''),
+              currentAccountPicture: ClipOval(
+                child: isLoading
+                    ? const CircularProgressIndicator()
+                    : (userData?.foto != null
+                        ? Image.network(
+                            '${Endpoints.getUserPhoto}/${userData!.idUser}',
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.person,
+                                size: 50,
+                                color: Colors.white,
+                              );
+                            },
+                          )
+                        : const Icon(
+                            Icons.person,
+                            size: 50,
+                            color: Colors.white,
+                          )),
               ),
               decoration: const BoxDecoration(
                 color: Colors.indigoAccent,
@@ -142,15 +151,15 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.map),
-              title: const Text('maps'),
+              title: const Text('Maps'),
               selected: _selectedIndex == 2,
               onTap: () {
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const Maps(),
-                    ),
-                  );
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const Maps(),
+                  ),
+                );
               },
             ),
             const Divider(),
